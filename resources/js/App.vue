@@ -25,7 +25,7 @@
             <router-link to="/admin/requests" v-if="isAdmin" class="nav-item">
                 <span class="icon">📋</span>
                 <span class="label">Solicitudes</span>
-                <span v-if="unreadCount > 0" class="badge-count bg-warning">{{ unreadCount }}</span>
+                <span v-if="pendingRequestsCount > 0" class="badge-count bg-warning">{{ pendingRequestsCount }}</span>
             </router-link>
 
             <router-link to="/admin/notifications" v-if="isAdmin" class="nav-item">
@@ -45,6 +45,10 @@
             </router-link>
 
             <div class="nav-divider">Comunidad</div>
+            <router-link to="/common-areas" class="nav-item">
+                <span class="icon">🏖️</span>
+                <span class="label">Zonas Comunes</span>
+            </router-link>
             <a href="#" class="nav-item disabled">
             <span class="icon">📢</span>
             <span class="label">Anuncios</span>
@@ -123,6 +127,7 @@
             <nav class="sidebar-nav" @click="menuOpen = false">
                 <template v-if="isApproved">
                     <router-link to="/" class="nav-item">Dashboard</router-link>
+                    <router-link to="/common-areas" class="nav-item">Zonas Comunes</router-link>
                     <router-link v-if="isAdmin" to="/admin" class="nav-item">Usuarios</router-link>
                     <router-link v-if="isAdmin" to="/admin/requests" class="nav-item">Solicitudes</router-link>
                     <router-link v-if="isAdmin" to="/admin/settings" class="nav-item">Configuración</router-link>
@@ -238,9 +243,13 @@ onMounted(async () => {
     loadSettings();
     fetchCounters();
     countersInterval = setInterval(fetchCounters, 30000);
+    window.addEventListener('notifications-updated', fetchCounters);
 });
 
-onUnmounted(() => { if (countersInterval) clearInterval(countersInterval); });
+onUnmounted(() => { 
+    if (countersInterval) clearInterval(countersInterval); 
+    window.removeEventListener('notifications-updated', fetchCounters);
+});
 </script>
 
 <style scoped>
