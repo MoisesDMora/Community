@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+
+# Local dev files
+.env
+.env.local
+.env.*.local
+.vite
+
+# Test & CI
+tests
+phpunit.xml
+.editorconfig
+
+# Build artifacts (generated inside container)
+public/hot
+
+# Logs & caches
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*.php
+
+# Docker itself
+Dockerfile
+docker-compose*.yml
+docker/
+
+# Misc
+README.md
