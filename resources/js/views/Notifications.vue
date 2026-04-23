@@ -5,8 +5,42 @@
             <h1>{{ isAdminMode ? 'Notificaciones del Conjunto' : 'Mis Notificaciones' }}</h1>
             <p class="text-secondary">{{ isAdminMode ? 'Solicitudes y actividad del sistema.' : 'Mensajes y anuncios recibidos.' }}</p>
         </div>
-        <button v-if="notifications.length" @click="markAllAsRead" class="btn btn-secondary btn-sm">Marcar todas como leídas</button>
+        <div class="flex gap-4">
+            <button v-if="isAdminMode" @click="showCompose = true" class="btn btn-primary btn-sm">Nueva Notificación</button>
+            <button v-if="notifications.length" @click="markAllAsRead" class="btn btn-secondary btn-sm">Marcar todas como leídas</button>
+        </div>
     </header>
+
+    <!-- Modal for Compose -->
+    <div v-if="showCompose" class="modal-overlay" @click.self="showCompose = false">
+        <div class="modal-content glass-panel p-6">
+            <h2 class="mb-4">Enviar Notificación a Todos</h2>
+            <form @submit.prevent="sendBroadcast">
+                <div class="form-group">
+                    <label>Título</label>
+                    <input type="text" v-model="compose.title" class="form-control" required />
+                </div>
+                <div class="form-group mt-4">
+                    <label>Mensaje</label>
+                    <textarea v-model="compose.message" class="form-control" rows="4" required></textarea>
+                </div>
+                <div class="form-group mt-4">
+                    <label>Imagen (Opcional)</label>
+                    <input type="file" @change="e => compose.image = e.target.files[0]" accept="image/*" class="form-control" />
+                </div>
+                <div class="form-group mt-4">
+                    <label>Adjunto (Opcional)</label>
+                    <input type="file" @change="e => compose.attachment = e.target.files[0]" class="form-control" />
+                </div>
+                <div class="flex justify-end gap-2 mt-6">
+                    <button type="button" @click="showCompose = false" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" :disabled="sending">
+                        {{ sending ? 'Enviando...' : 'Enviar a Todos' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <div v-if="loading" class="text-center py-10">
         <span class="badge badge-warning">Cargando...</span>
@@ -41,6 +75,15 @@
                 <h4 class="note-title">{{ note.title }}</h4>
                 <p class="note-message">{{ note.message }}</p>
 
+                <div v-if="note.image_url" class="mt-4">
+                    <img :src="note.image_url" alt="Imagen Adjunta" class="rounded max-h-60 object-contain shadow" />
+                </div>
+                <div v-if="note.attachment_url" class="mt-4">
+                    <a :href="note.attachment_url" target="_blank" class="btn btn-secondary btn-sm flex items-center gap-2 inline-flex">
+                        <span>📄</span> Descargar Archivo Adjunto
+                    </a>
+                </div>
+
                 <div v-if="note.data?.properties" class="property-detail mt-4">
                     <span class="detail-label">Detalles de Unidades:</span>
                     <div class="flex flex-wrap gap-2 mt-2">
@@ -60,7 +103,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, reactive } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
@@ -70,6 +113,15 @@ const auth = useAuthStore();
 const route = useRoute();
 const notifications = ref([]);
 const loading = ref(true);
+
+const showCompose = ref(false);
+const sending = ref(false);
+const compose = reactive({
+    title: '',
+    message: '',
+    image: null,
+    attachment: null
+});
 
 const isAdminMode = computed(() => {
     // Determine if we are in admin "general notifications" view
@@ -84,11 +136,52 @@ const fetchNotifications = async () => {
     finally { loading.value = false; }
 };
 
+const sendBroadcast = async () => {
+    sending.value = true;
+    try {
+        const formData = new FormData();
+        formData.append('title', compose.title);
+        formData.append('message', compose.message);
+        if (compose.image) formData.append('image', compose.image);
+        if (compose.attachment) formData.append('attachment', compose.attachment);
+
+        const response = await axios.post('/api/admin/notifications/send-all', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+
+        Swal.fire({
+            title: '¡Evidenciado!',
+            text: response.data.message || 'Notificación enviada con éxito',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        showCompose.value = false;
+        compose.title = '';
+        compose.message = '';
+        compose.image = null;
+        compose.attachment = null;
+    } catch (error) {
+        console.error(error);
+        Swal.fire({
+            title: 'Error',
+            text: error.response?.data?.message || 'Error al enviar la notificación',
+            icon: 'error'
+        });
+    } finally {
+        sending.value = false;
+    }
+};
+
 const markRead = async (id) => {
     try {
         await axios.post(`/api/notifications/${id}/read`);
         const note = notifications.value.find(n => n.id === id);
         if (note) note.is_read = true;
+        window.dispatchEvent(new Event('notifications-updated'));
     } catch (e) { console.error(e); }
 };
 
@@ -96,6 +189,7 @@ const markAllAsRead = async () => {
     try {
         await axios.post('/api/notifications/read-all');
         notifications.value.forEach(n => n.is_read = true);
+        window.dispatchEvent(new Event('notifications-updated'));
         Swal.fire({ title: '¡Listo!', text: 'Todas marcadas como leídas', icon: 'success', timer: 1500, showConfirmButton: false });
     } catch (e) { console.error(e); }
 };
@@ -112,6 +206,7 @@ const deleteNote = async (id) => {
         try {
             await axios.delete(`/api/notifications/${id}`);
             notifications.value = notifications.value.filter(n => n.id !== id);
+            window.dispatchEvent(new Event('notifications-updated'));
         } catch (e) { console.error(e); }
     }
 };
@@ -143,4 +238,10 @@ onMounted(fetchNotifications);
 .btn-icon:hover { opacity: 1; }
 .text-danger { color: #ef4444; }
 .empty-icon { font-size: 4rem; margin-bottom: 1rem; }
+
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+.modal-content { background: white; width: 90%; max-width: 500px; border-radius: 20px; overflow-y: auto; max-height: 90vh; }
+.form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+.form-group label { font-weight: 600; font-size: 0.9rem; }
+.form-control { padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 10px; font-family: inherit; }
 </style>

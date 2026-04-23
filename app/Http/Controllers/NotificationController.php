@@ -15,9 +15,12 @@ class NotificationController extends Controller
         $query = Notification::with('sender')
             ->orderBy('created_at', 'desc');
 
-        // IF ADMIN, show admin notifications (recipient_id IS NULL)
+        // IF ADMIN, show admin notifications AND personal notifications
         if ($user->hasRole(['master', 'admin'])) {
-            $query->whereNull('recipient_id');
+            $query->where(function ($q) use ($user) {
+                $q->whereNull('recipient_id')
+                  ->orWhere('recipient_id', $user->id);
+            });
         } else {
             // IF RESIDENT, show only their notifications
             $query->where('recipient_id', $user->id);
@@ -48,7 +51,10 @@ class NotificationController extends Controller
         $query = Notification::where('is_read', false);
 
         if ($user->hasRole(['master', 'admin'])) {
-            $query->whereNull('recipient_id');
+            $query->where(function ($q) use ($user) {
+                $q->whereNull('recipient_id')
+                  ->orWhere('recipient_id', $user->id);
+            });
         } else {
             $query->where('recipient_id', $user->id);
         }
@@ -75,7 +81,10 @@ class NotificationController extends Controller
         $query = Notification::where('is_read', false);
 
         if ($user->hasRole(['master', 'admin'])) {
-            $query->whereNull('recipient_id');
+            $query->where(function ($q) use ($user) {
+                $q->whereNull('recipient_id')
+                  ->orWhere('recipient_id', $user->id);
+            });
         } else {
             $query->where('recipient_id', $user->id);
         }
@@ -93,8 +102,13 @@ class NotificationController extends Controller
             'user_id' => 'required|exists:users,id',
             'title' => 'required|string|max:255',
             'message' => 'required|string',
-            'type' => 'nullable|string'
+            'type' => 'nullable|string',
+            'image' => 'nullable|image|max:2048',
+            'attachment' => 'nullable|file|max:5120',
         ]);
+
+        $imagePath = $request->hasFile('image') ? $request->file('image')->store('notifications', 'public') : null;
+        $attachmentPath = $request->hasFile('attachment') ? $request->file('attachment')->store('notifications', 'public') : null;
 
         $notif = Notification::create([
             'sender_id' => $request->user()->id,
@@ -102,9 +116,56 @@ class NotificationController extends Controller
             'title' => $validated['title'],
             'message' => $validated['message'],
             'type' => $validated['type'] ?? 'admin_message',
-            'is_read' => false
+            'is_read' => false,
+            'image_path' => $imagePath,
+            'attachment_path' => $attachmentPath,
         ]);
 
         return response()->json(['status' => 'success', 'notification' => $notif]);
+    }
+
+    public function sendToAll(Request $request)
+    {
+        if (!$request->user()->hasRole(['master', 'admin'])) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'message' => 'required|string',
+            'type' => 'nullable|string',
+            'image' => 'nullable|image|max:2048',
+            'attachment' => 'nullable|file|max:5120',
+        ]);
+
+        $imagePath = $request->hasFile('image') ? $request->file('image')->store('notifications', 'public') : null;
+        $attachmentPath = $request->hasFile('attachment') ? $request->file('attachment')->store('notifications', 'public') : null;
+
+        $targetUsers = User::where('status', 'activo')->get();
+        $notifications = [];
+
+        foreach ($targetUsers as $targetUser) {
+            $notifications[] = [
+                'sender_id' => $request->user()->id,
+                'recipient_id' => $targetUser->id,
+                'title' => $validated['title'],
+                'message' => $validated['message'],
+                'type' => $validated['type'] ?? 'admin_broadcast',
+                'is_read' => false,
+                'image_path' => $imagePath,
+                'attachment_path' => $attachmentPath,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if (!empty($notifications)) {
+            Notification::insert($notifications);
+        }
+
+        return response()->json([
+            'status' => 'success', 
+            'message' => 'Notificación enviada a ' . count($notifications) . ' usuarios activos.',
+        ]);
     }
 }

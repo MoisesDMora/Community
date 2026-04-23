@@ -68,7 +68,9 @@ class CommunityRequestController extends Controller
             return response()->json(['count' => 0]);
         }
 
-        $count = CommunityRequest::where('status', 'pendiente')->count();
-        return response()->json(['count' => $count]);
+        $userReqCount = CommunityRequest::where('status', 'pendiente')->count();
+        $resCount = \App\Models\CommonAreaReservation::where('status', 'pendiente')->count();
+        
+        return response()->json(['count' => $userReqCount + $resCount]);
     }
 }

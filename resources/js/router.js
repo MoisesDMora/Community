@@ -22,6 +22,11 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/common-areas',
+    component: () => import('./views/CommonAreas.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     component: () => import('./views/Admin.vue'),
     meta: { requiresAuth: true, roles: ['admin', 'master'] }

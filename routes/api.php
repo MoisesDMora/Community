@@ -17,6 +17,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/avatar', [AuthController::class, 'uploadAvatar']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    // Common Areas
+    Route::get('/common-areas', [App\Http\Controllers\CommonAreaController::class, 'index']);
+    Route::post('/common-areas', [App\Http\Controllers\CommonAreaController::class, 'store']);
+    Route::put('/common-areas/{id}', [App\Http\Controllers\CommonAreaController::class, 'update']);
+    Route::delete('/common-areas/{id}', [App\Http\Controllers\CommonAreaController::class, 'destroy']);
+    
+    // Common Areas Reservations
+    Route::get('/common-areas/{id}/reservations', [App\Http\Controllers\CommonAreaReservationController::class, 'index']);
+    Route::post('/common-areas/{id}/reservations', [App\Http\Controllers\CommonAreaReservationController::class, 'store']);
+    Route::get('/my-reservations', [App\Http\Controllers\CommonAreaReservationController::class, 'myReservations']);
+    Route::get('/admin/reservations', [App\Http\Controllers\CommonAreaReservationController::class, 'adminIndex']);
+    Route::post('/admin/reservations/{id}/status', [App\Http\Controllers\CommonAreaReservationController::class, 'updateStatus']);
+
     // Community Requests (Solicitudes)
     Route::get('/community-requests/pending-count', [CommunityRequestController::class, 'pendingCount']);
     Route::get('/community-requests', [CommunityRequestController::class, 'index']);
@@ -31,6 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin/Master Only Notifications
     Route::post('/admin/notifications/send', [NotificationController::class, 'sendToUser']);
+    Route::post('/admin/notifications/send-all', [NotificationController::class, 'sendToAll']);
 
     // Admin/Master Routes
     Route::get('/admin/users', [AdminUserController::class, 'index']);
